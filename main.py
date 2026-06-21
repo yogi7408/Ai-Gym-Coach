@@ -200,18 +200,59 @@ def main():
         )
     else:
         context = webrtc_streamer(
-        key="test",
-        mode=WebRtcMode.SENDRECV,
-        rtc_configuration={
-        "iceServers": [
-            {"urls": ["stun:stun.l.google.com:19302"]},
-            {"urls": ["stun:stun1.l.google.com:19302"]},
-        ]
-       },
-    )
+            key="exercise-analysis",
+            mode=WebRtcMode.SENDRECV,
+            video_processor_factory=VideoProcessorClass,
+            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+            media_stream_constraints={
+                "video": True,
+                "audio": False
+            },
+            async_processing=True
+        )
 
-        st.write("Playing:", context.state.playing)
-        
+        sync_metrics_update(context)
+
+        if context.state.playing:
+            time.sleep(0.25)
+            st.rerun()
+
+        inject_webrtc_styles()
+
+    st.divider()
+
+    st.markdown("#### Workout History")
+
+    user_id = st.session_state.get("user_id", 0)
+
+    if isinstance(user_id, int):
+        history_rows = get_users_exercises(user_id)
+
+        arr = [
+            {
+                "Exercise": row['exercise_name'],
+                "Reps": row['reps'],
+                "Sets": row['sets'],
+                "Time (sec)": row['time'],
+                "Date": row['created_at']
+            }
+            for row in history_rows
+        ]
+
+        df = pd.DataFrame(arr)
+
+        if not df.empty:
+            df["Date"] = pd.to_datetime(df["Date"]).dt.date
+            agg_df = df.groupby(["Exercise", "Date"]).agg({
+                "Reps": 'sum',
+                "Sets": "sum",
+                "Time (sec)": "sum"
+            }).reset_index()
+            agg_df.index += 1
+            st.table(agg_df, border="horizontal")
+        else:
+            st.info("No workout history found.")
+
 
 if __name__ == "__main__":
     main()
